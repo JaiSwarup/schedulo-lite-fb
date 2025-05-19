@@ -1,7 +1,7 @@
 "use server";
 
-import { auth } from "@/lib/firebase/config";
-import { signInWithEmailAndPassword, signOut, updateProfile as firebaseUpdateProfile } from "firebase/auth";
+import { auth } from '@/lib/firebase/config';
+import { signInWithEmailAndPassword, signOut, updateProfile as firebaseUpdateProfile, createUserWithEmailAndPassword } from "firebase/auth";
 import type { FirebaseUser } from "@/lib/types";
 import { cookies } from "next/headers"; // For potential session management if not relying solely on Firebase SDK client-side state
 import { getDoc, doc, setDoc } from "firebase/firestore";
@@ -44,6 +44,26 @@ export async function loginUser(credentials: { email: string; password: string }
     return { success: false, error: error.message };
   }
 }
+
+export async function registerUser(credentials: { username?: string; email: string; password: string }): Promise<{ success: boolean; error?: string; user?: FirebaseUser }> {
+  try {
+    const userCredential = await createUserWithEmailAndPassword(auth, credentials.email, credentials.password);
+    const firebaseUser = userCredential.user;
+
+    // Optional: Update user profile with username
+    if (credentials.username && firebaseUser) {
+      await firebaseUpdateProfile(firebaseUser, { displayName: credentials.username });
+      // Also save to Firestore
+      const userDocRef = doc(db, "users", firebaseUser.uid);
+      await setDoc(userDocRef, { email: firebaseUser.email, displayName: credentials.username, role: 'user' }); // Default role to 'user'
+    }
+
+    return { success: true, user: { uid: firebaseUser.uid, email: firebaseUser.email, displayName: firebaseUser.displayName, isAdmin: false } };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
 
 export async function logoutUser(): Promise<{ success: boolean; error?: string }> {
   try {
