@@ -10,7 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import type { Slot } from "@/lib/types";
+import type { Slot } from "@/generated/prisma";
 import { Button } from "@/components/ui/button";
 
 interface BookingModalProps {
@@ -21,7 +21,13 @@ interface BookingModalProps {
   userName: string;
 }
 
-export function BookingModal({ isOpen, onClose, onConfirm, slot, userName }: BookingModalProps) {
+export function BookingModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  slot,
+  userName,
+}: BookingModalProps) {
   if (!isOpen) return null;
 
   return (
@@ -30,7 +36,8 @@ export function BookingModal({ isOpen, onClose, onConfirm, slot, userName }: Boo
         <AlertDialogHeader>
           <AlertDialogTitle>Confirm Booking</AlertDialogTitle>
           <AlertDialogDescription>
-            You are about to book the time slot: <strong>{slot.timeLabel}</strong>.
+            You are about to book the time slot:{" "}
+            <strong>{slot.timeLabel}</strong>.
             <br />
             This booking will be under the name: <strong>{userName}</strong>.
             <br />
@@ -39,10 +46,17 @@ export function BookingModal({ isOpen, onClose, onConfirm, slot, userName }: Boo
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel asChild>
-            <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <Button variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
           </AlertDialogCancel>
           <AlertDialogAction asChild>
-            <Button onClick={onConfirm} className="bg-accent hover:bg-accent/90">Confirm Booking</Button>
+            <Button
+              onClick={onConfirm}
+              className="bg-accent hover:bg-accent/90"
+            >
+              Confirm Booking
+            </Button>
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -1,80 +1,75 @@
 "use client";
 
-import type { FirebaseUser, Booking } from "@/lib/types";
-import { useEffect, useState, useCallback } from "react";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth, db } from "@/lib/firebase/config";
-import { getUserBookings } from "@/lib/firebase/firestore";
+import type { User, Slot } from "@/generated/prisma";
+import { useEffect, useState } from "react";
+import { getUserBookings } from "@/lib/prisma/db";
 import { cancelSlot as cancelSlotAction } from "@/app/_actions/slots";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  TableCaption,
+} from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { XCircle, CalendarCheck2, Loader2 } from "lucide-react";
-import { format } from 'date-fns'; // For formatting timestamp if needed
-import { doc, getDoc, onSnapshot, collection, query, where, orderBy } from 'firebase/firestore';
+import { format } from "date-fns"; // For formatting timestamp if needed
+import { cn } from "@/lib/utils";
 
 export default function BookingsPage() {
-  const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [bookings, setBookings] = useState<Slot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
+  // TODO: Replace with your own session/auth logic
+  // Example: fetch user from session/cookie or context
+  // setCurrentUser({ id: "demo", email: "demo@demo.com", displayName: "Demo User", role: "user", createdAt: new Date() });
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        const userDocRef = doc(db, "users", user.uid);
-        const userDocSnap = await getDoc(userDocRef);
-        setCurrentUser({
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-          isAdmin: userDocSnap.exists() && userDocSnap.data().role === 'admin',
-        });
-      } else {
-        setCurrentUser(null);
-        // Redirect or handle unauthenticated state if needed, though (main)/layout should cover this
-      }
+    setCurrentUser({
+      id: "demo",
+      email: "demo@demo.com",
+      displayName: "Demo User",
+      isAdmin: false,
+      password: "",
+      role: "user",
+      createdAt: new Date(),
     });
-    return () => unsubscribeAuth();
   }, []);
 
   useEffect(() => {
-    if (currentUser?.uid) {
+    if (currentUser?.id) {
       setIsLoading(true);
-      const bookingsQuery = query(
-        collection(db, "slots"), 
-        where("bookedByUid", "==", currentUser.uid),
-        orderBy("hour", "asc")
-      );
-      
-      const unsubscribeBookings = onSnapshot(bookingsQuery, (querySnapshot) => {
-        const userBookings = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking));
+      getUserBookings(currentUser.id).then((userBookings: Slot[]) => {
         setBookings(userBookings);
         setIsLoading(false);
-      }, (error) => {
-        console.error("Error fetching real-time bookings:", error);
-        toast({ variant: "destructive", title: "Error", description: "Could not load your bookings." });
-        setIsLoading(false);
       });
-      
-      return () => unsubscribeBookings();
-    } else {
-      setBookings([]); // Clear bookings if no user
-      setIsLoading(false);
     }
-  }, [currentUser, toast]);
-
+  }, [currentUser]);
 
   const handleCancelBooking = async (slotId: string) => {
     if (!currentUser) return;
-    const result = await cancelSlotAction(slotId, currentUser.uid);
+    const result = await cancelSlotAction(slotId, currentUser.id);
     if (result.success) {
       toast({ title: "Success", description: "Booking cancelled." });
-      // Real-time updates will refresh the list
+      setBookings(await getUserBookings(currentUser.id));
     } else {
-      toast({ variant: "destructive", title: "Cancellation Failed", description: result.error });
+      toast({
+        variant: "destructive",
+        title: "Cancellation Failed",
+        description: result.error,
+      });
     }
   };
 
@@ -88,16 +83,23 @@ export default function BookingsPage() {
 
   return (
     <div className="container mx-auto py-8">
-       <Card className="shadow-xl">
+      <Card className="shadow-xl">
         <CardHeader>
           <CardTitle className="text-3xl font-bold text-primary flex items-center">
             <CalendarCheck2 className="mr-3 h-8 w-8" /> My Bookings
           </CardTitle>
-          <CardDescription>Here are all the time slots you have booked.</CardDescription>
+          <CardDescription>
+            Here are all the time slots you have booked.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {bookings.length === 0 ? (
-            <p className="text-center text-muted-foreground py-10">You have no bookings yet. <a href="/dashboard" className="text-primary hover:underline">Book a slot!</a></p>
+            <p className="text-center text-muted-foreground py-10">
+              You have no bookings yet.{" "}
+              <a href="/dashboard" className="text-primary hover:underline">
+                Book a slot!
+              </a>
+            </p>
           ) : (
             <Table>
               <TableHeader>
@@ -111,17 +113,31 @@ export default function BookingsPage() {
               <TableBody>
                 {bookings.map((booking) => (
                   <TableRow key={booking.id}>
-                    <TableCell className="font-medium">{booking.timeLabel}</TableCell>
-                    <TableCell>
-                      {booking.bookedAt ? format(booking.bookedAt.toDate(), "MMM d, yyyy 'at' h:mm a") : 'N/A'}
+                    <TableCell className="font-medium">
+                      {booking.timeLabel}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={booking.isManuallyUnavailable ? "secondary" : "default"}
-                       className={cn(
-                         booking.isManuallyUnavailable ? "bg-gray-500" : "bg-green-500", "text-white"
-                       )}
+                      {booking.bookedAt
+                        ? format(booking.bookedAt, "MMM d, yyyy 'at' h:mm a")
+                        : "N/A"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant={
+                          booking.isManuallyUnavailable
+                            ? "secondary"
+                            : "default"
+                        }
+                        className={cn(
+                          booking.isManuallyUnavailable
+                            ? "bg-gray-500"
+                            : "bg-green-500",
+                          "text-white"
+                        )}
                       >
-                        {booking.isManuallyUnavailable ? "Admin Blocked" : "Confirmed"}
+                        {booking.isManuallyUnavailable
+                          ? "Admin Blocked"
+                          : "Confirmed"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
@@ -135,14 +151,16 @@ export default function BookingsPage() {
                           <XCircle className="mr-2 h-4 w-4" /> Cancel
                         </Button>
                       )}
-                       {booking.isManuallyUnavailable && (
-                        <span className="text-sm text-muted-foreground italic">Blocked by Admin</span>
+                      {booking.isManuallyUnavailable && (
+                        <span className="text-sm text-muted-foreground italic">
+                          Blocked by Admin
+                        </span>
                       )}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
-               <TableCaption>{bookings.length} booking(s) found.</TableCaption>
+              <TableCaption>{bookings.length} booking(s) found.</TableCaption>
             </Table>
           )}
         </CardContent>

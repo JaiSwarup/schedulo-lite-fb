@@ -1,11 +1,11 @@
 import { SlotGrid } from "@/components/dashboard/SlotGrid";
-import { getSlots } from "@/lib/firebase/firestore";
-import type { Metadata } from 'next';
+import { getSlots } from "@/lib/prisma/db";
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export const metadata: Metadata = {
-  title: 'Dashboard - Schedulo Lite',
+  title: "Dashboard - Schedulo Lite",
 };
 
 // Revalidate data, e.g., every 60 seconds or on demand
@@ -18,7 +18,7 @@ function SlotGridSkeleton() {
         <Skeleton key={i} className="h-48 rounded-lg" />
       ))}
     </div>
-  )
+  );
 }
 
 export default async function DashboardPage() {
@@ -32,9 +32,12 @@ export default async function DashboardPage() {
   return (
     <div className="container mx-auto py-8">
       <header className="mb-8">
-        <h1 className="text-4xl font-bold tracking-tight text-primary">Available Time Slots</h1>
+        <h1 className="text-4xl font-bold tracking-tight text-primary">
+          Available Time Slots
+        </h1>
         <p className="text-muted-foreground mt-2">
-          Book your sessions for today. Slots are in 1-hour intervals from 10 AM to 5 PM.
+          Book your sessions for today. Slots are in 1-hour intervals from 10 AM
+          to 5 PM.
         </p>
       </header>
       <Suspense fallback={<SlotGridSkeleton />}>

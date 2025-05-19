@@ -12,16 +12,26 @@ import {
   SidebarMenuButton,
   SidebarGroup,
   SidebarGroupLabel,
-  SidebarTrigger,
+  // SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { UserNav } from "./UserNav";
-import { Home, CalendarDays, UserCircle, ShieldCheck, Settings, CalendarPlus, GanttChartSquare, LogOut, PanelLeft } from "lucide-react";
-import type { FirebaseUser } from "@/lib/types";
+import {
+  Home,
+  CalendarDays,
+  UserCircle,
+  ShieldCheck,
+  // Settings,
+  // CalendarPlus,
+  GanttChartSquare,
+  // LogOut,
+  PanelLeft,
+} from "lucide-react";
+import type { User } from "@/generated/prisma";
 import { useSidebar } from "@/components/ui/sidebar"; // Import useSidebar
 
 interface AppSidebarProps {
-  user: FirebaseUser | null;
+  user: User | null;
 }
 
 const navItems = [
@@ -42,7 +52,7 @@ export function AppSidebar({ user }: AppSidebarProps) {
     <Link href="/dashboard" className="flex items-center gap-2">
       <GanttChartSquare className="h-8 w-8 text-primary" />
       {sidebarState === "expanded" && !isMobile && (
-         <h1 className="text-xl font-bold text-primary">Schedulo Lite</h1>
+        <h1 className="text-xl font-bold text-primary">Schedulo Lite</h1>
       )}
     </Link>
   );
@@ -50,21 +60,30 @@ export function AppSidebar({ user }: AppSidebarProps) {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-4 flex justify-between items-center">
-         <ScheduloLogo />
-         {sidebarState === "expanded" && !isMobile && (
-            <Button variant="ghost" size="icon" className="md:hidden" onClick={toggleSidebar}>
-              <PanelLeft />
-            </Button>
-         )}
+        <ScheduloLogo />
+        {sidebarState === "expanded" && !isMobile && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden"
+            onClick={toggleSidebar}
+          >
+            <PanelLeft />
+          </Button>
+        )}
       </SidebarHeader>
 
       <SidebarContent className="p-2">
         <SidebarMenu>
           {navItems.map((item) => (
             <SidebarMenuItem key={item.href}>
-              <Link href={item.href} passHref legacyBehavior>
+              <Link href={item.href} passHref>
                 <SidebarMenuButton
-                  isActive={pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))}
+                  isActive={
+                    pathname === item.href ||
+                    (item.href !== "/dashboard" &&
+                      pathname.startsWith(item.href))
+                  }
                   tooltip={{ children: item.label, className: "ml-2" }}
                   aria-label={item.label}
                 >
@@ -77,17 +96,21 @@ export function AppSidebar({ user }: AppSidebarProps) {
 
           {user?.isAdmin && (
             <SidebarGroup className="mt-4 p-0">
-              {sidebarState === 'expanded' && <SidebarGroupLabel className="px-2">Admin</SidebarGroupLabel>}
+              {sidebarState === "expanded" && (
+                <SidebarGroupLabel className="px-2">Admin</SidebarGroupLabel>
+              )}
               {adminNavItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
-                   <Link href={item.href} passHref legacyBehavior>
+                  <Link href={item.href} passHref legacyBehavior>
                     <SidebarMenuButton
-                      isActive={pathname === item.href || pathname.startsWith(item.href)}
+                      isActive={
+                        pathname === item.href || pathname.startsWith(item.href)
+                      }
                       tooltip={{ children: item.label, className: "ml-2" }}
                       aria-label={item.label}
                     >
                       <item.icon />
-                       <span>{item.label}</span>
+                      <span>{item.label}</span>
                     </SidebarMenuButton>
                   </Link>
                 </SidebarMenuItem>

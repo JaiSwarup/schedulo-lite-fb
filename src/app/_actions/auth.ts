@@ -1,126 +1,98 @@
 "use server";
 
-import { auth } from '@/lib/firebase/config';
-import { signInWithEmailAndPassword, signOut, updateProfile as firebaseUpdateProfile, createUserWithEmailAndPassword } from "firebase/auth";
-import type { FirebaseUser } from "@/lib/types";
-import { cookies } from "next/headers"; // For potential session management if not relying solely on Firebase SDK client-side state
-import { getDoc, doc, setDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase/config";
+import { prisma } from "@/lib/prisma";
+import type { User } from "@/generated/prisma";
+import bcrypt from "bcryptjs";
+import { cookies } from "next/headers";
 
-// Note: Firebase Auth typically manages session state on the client-side.
-// Server actions can perform auth operations, but redirect/state updates are best handled client-side after action completion.
-// For this example, we'll return success/error states.
+async function getCookiesSync() {
+  return await cookies();
+}
 
-export async function loginUser(credentials: { email: string; password: string }): Promise<{ success: boolean; error?: string; user?: FirebaseUser }> {
+export async function loginUser(credentials: {
+  email: string;
+  password: string;
+}): Promise<{ success: boolean; error?: string; user?: User }> {
+  const user = await prisma.user.findUnique({
+    where: { email: credentials.email },
+  });
+  if (!user) return { success: false, error: "User not found" };
+  const isValid = await bcrypt.compare(credentials.password, user.password);
+  if (!isValid) return { success: false, error: "Invalid password" };
+  const cookiesObj = await getCookiesSync();
+  cookiesObj.set("session_user_id", user.id, { httpOnly: true });
+  return { success: true, user };
+}
+
+export async function registerUser(credentials: {
+  username?: string;
+  email: string;
+  password: string;
+}): Promise<{ success: boolean; error?: string; user?: User }> {
   try {
-    const userCredential = await signInWithEmailAndPassword(auth, credentials.email, credentials.password);
-    const firebaseUser = userCredential.user;
-    
-    // Simulate setting a session cookie or token if needed for server-side rendering based on auth state
-    // For now, Firebase client SDK will handle auth persistence.
-    // cookies().set("session", firebaseUser.uid, { httpOnly: true, secure: process.env.NODE_ENV === "production" });
-
-
-    // Check for admin role
-    let isAdmin = false;
-    if (firebaseUser) {
-      const userDocRef = doc(db, "users", firebaseUser.uid);
-      const userDocSnap = await getDoc(userDocRef);
-      if (userDocSnap.exists() && userDocSnap.data().role === 'admin') {
-        isAdmin = true;
+    const hashed = await bcrypt.hash(credentials.password, 10);
+    const user = await prisma.user.create({
+      data: {
+        email: credentials.email,
+        displayName: credentials.username,
+        password: hashed,
+        role: "user",
+        createdAt: new Date(),
+      },
+    });
+    return { success: true, user };
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message.includes("Unique constraint failed")) {
+        return { success: false, error: "Email already exists" };
+      } else {
+        return { success: false, error: "Failed to register user" };
       }
     }
-
-    return { 
-      success: true, 
-      user: { 
-        uid: firebaseUser.uid, 
-        email: firebaseUser.email, 
-        displayName: firebaseUser.displayName,
-        isAdmin,
-      } 
-    };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+    return { success: false, error: "Failed to register user" };
   }
 }
 
-export async function registerUser(credentials: { username?: string; email: string; password: string }): Promise<{ success: boolean; error?: string; user?: FirebaseUser }> {
-  try {
-    const userCredential = await createUserWithEmailAndPassword(auth, credentials.email, credentials.password);
-    const firebaseUser = userCredential.user;
-
-    // Optional: Update user profile with username
-    if (credentials.username && firebaseUser) {
-      await firebaseUpdateProfile(firebaseUser, { displayName: credentials.username });
-      // Also save to Firestore
-      const userDocRef = doc(db, "users", firebaseUser.uid);
-      await setDoc(userDocRef, { email: firebaseUser.email, displayName: credentials.username, role: 'user' }); // Default role to 'user'
-    }
-
-    return { success: true, user: { uid: firebaseUser.uid, email: firebaseUser.email, displayName: firebaseUser.displayName, isAdmin: false } };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
+export async function logoutUser(): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  const cookiesObj = await getCookiesSync();
+  cookiesObj.delete("session_user_id");
+  return { success: true };
 }
 
-
-export async function logoutUser(): Promise<{ success: boolean; error?: string }> {
-  try {
-    await signOut(auth);
-    // cookies().delete("session");
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
+export async function getCurrentUserSession(): Promise<User | null> {
+  const cookiesObj = await getCookiesSync();
+  const sessionId = cookiesObj.get("session_user_id")?.value;
+  if (!sessionId) return null;
+  const user = await prisma.user.findUnique({ where: { id: sessionId } });
+  return user || null;
 }
-
-// This function is more for server-side checks if using cookies/tokens.
-// Client-side auth state is usually obtained via `onAuthStateChanged`.
-export async function getCurrentUserSession(): Promise<FirebaseUser | null> {
-  // const session = cookies().get("session")?.value;
-  // if (!session || !auth.currentUser) { // This check is problematic on server
-  //   return null;
-  // }
-  // For server components, it's tricky to get Firebase `currentUser` directly without client involvement or passing token.
-  // This function's utility is limited in a pure server action context without a custom token verification.
-  // We'll rely on client-side auth state for routing and UI updates.
-  // The (main)/layout.tsx will handle client-side auth check.
-  
-  // Placeholder for actual implementation if custom session management is used.
-  // For now, this will not be directly used for route protection from server.
-  return null; 
-}
-
 
 export async function isUserAdminServer(userId: string): Promise<boolean> {
-  if (!userId) return false;
-  try {
-    const userDocRef = doc(db, "users", userId);
-    const userDocSnap = await getDoc(userDocRef);
-    if (userDocSnap.exists() && userDocSnap.data().role === 'admin') {
-      return true;
-    }
-    return false;
-  } catch (error) {
-    console.error("Error checking admin status:", error);
-    return false;
-  }
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  return user?.role === "admin";
 }
 
-export async function updateUserProfile(userId: string, data: { displayName: string }): Promise<{ success: boolean; error?: string }> {
-  const currentUser = auth.currentUser;
-  if (!currentUser || currentUser.uid !== userId) {
-    return { success: false, error: "User not authenticated or mismatch." };
-  }
-
+export async function updateUserProfile(
+  userId: string,
+  data: { displayName: string }
+): Promise<{ success: boolean; error?: string }> {
   try {
-    await firebaseUpdateProfile(currentUser, { displayName: data.displayName });
-    // Update in Firestore users collection as well
-    const userDocRef = doc(db, "users", userId);
-    await setDoc(userDocRef, { displayName: data.displayName }, { merge: true });
+    await prisma.user.update({
+      where: { id: userId },
+      data: { displayName: data.displayName },
+    });
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch (error) {
+    if (error instanceof Error) {
+      if (error.message.includes("Unique constraint failed")) {
+        return { success: false, error: "Display name already exists" };
+      } else {
+        return { success: false, error: error.message };
+      }
+    }
+    return { success: false, error: "Failed to update profile" };
   }
 }

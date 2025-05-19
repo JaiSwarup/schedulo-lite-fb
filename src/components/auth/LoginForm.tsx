@@ -13,7 +13,13 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import { loginUser } from "@/app/_actions/auth";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
@@ -22,7 +28,9 @@ import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
-  password: z.string().min(6, { message: "Password must be at least 6 characters." }),
+  password: z
+    .string()
+    .min(6, { message: "Password must be at least 6 characters." }),
 });
 
 export function LoginForm() {
@@ -61,6 +69,7 @@ export function LoginForm() {
         title: "Login Error",
         description: "An unexpected error occurred. Please try again.",
       });
+      console.error("Login error:", error);
     } finally {
       setIsLoading(false);
     }
@@ -69,8 +78,12 @@ export function LoginForm() {
   return (
     <Card className="w-full max-w-md shadow-xl">
       <CardHeader>
-        <CardTitle className="text-3xl font-bold text-center text-primary">Schedulo Lite</CardTitle>
-        <CardDescription className="text-center">Welcome back! Please login to your account.</CardDescription>
+        <CardTitle className="text-3xl font-bold text-center text-primary">
+          Schedulo Lite
+        </CardTitle>
+        <CardDescription className="text-center">
+          Welcome back! Please login to your account.
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
